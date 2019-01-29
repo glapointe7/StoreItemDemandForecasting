@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas
 
 from statsmodels.graphics import tsaplots
 from statsmodels.tsa.stattools import adfuller
@@ -9,28 +10,33 @@ from beautifultable import BeautifulTable
 def mean_absolute_percentage_error(y_true, y_pred): 
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
+def smape(actual, forecast):
+    return 100 / len(actual) * np.sum(2 * np.abs(forecast - actual) / (np.abs(actual) + np.abs(forecast)))
+
+
 def PlotAutoCorrelation(store_item, lags):
     plt.figure(figsize=(18, 10))
 
     acf = plt.subplot(1, 2, 1)
     tsaplots.plot_acf(store_item, lags=lags[0], ax=acf)
     plt.xlabel('Lags')
-    plt.ylabel('ACF')
-    plt.title('Auto-correlation factor \nin function of the lag')
+    plt.ylabel('ACF(k)')
+    plt.title('Auto-correlation function \nin function of the lag k')
 
     pacf = plt.subplot(1, 2, 2)
     pacf = tsaplots.plot_pacf(store_item, lags=lags[1], ax=pacf)
     plt.xlabel('Lags')
-    plt.ylabel('PACF')
-    plt.title('Partial auto-correlation factor \nin function of the lag')
+    plt.ylabel('PACF(k)')
+    plt.title('Partial auto-correlation function \nin function of the lag k')
 
     plt.show() 
 
+    
 def TestStationarity(store_item, critical_value):
     print('Results of the Augmented Dickey-Fuller Test:')
     print('-----------------------------------------------------\n')
     
-    adf_stat, pvalue, critical_values, resstore = adfuller(store_item, regression='ct', regresults=True)
+    adf_stat, pvalue, critical_values, resstore = adfuller(store_item, regresults=True)
 
     print(resstore.resols.summary())
     
