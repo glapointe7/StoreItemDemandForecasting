@@ -5,25 +5,27 @@ from scipy import stats
 
 import matplotlib.pyplot as plt
 import pandas
-import statistics
 import numpy as np
+from Item import *
 
 
 # Return the list of normals(1) or anomalies(-1) for each item of each store using the isolation forest algorithm.
 def ListAllByApplyingIsolationForest(train, outliers_fraction):
     anomalies = []
+    features = ['sales']
     for store_id in range(1, 11):
         for item_id in range(1, 51):
-            store_item = train.loc[(train.store == store_id) & (train.item == item_id), ['date', 'sales', 'month_number']]
-            store_item.date = store_item.date.str.replace('\D', '').astype(int)
-            
-            scaler = StandardScaler()
-            np_scaled = scaler.fit_transform(store_item[['date', 'sales', 'month_number']])
-            scaled_store_item = pandas.DataFrame(np_scaled)
-            
-            model = IsolationForest(contamination=outliers_fraction)
-            model.fit(scaled_store_item) 
-            anomalies.extend(model.predict(scaled_store_item))
+            for year in range(2013, 2018):
+                item_by_year = train.loc[(train.store == store_id) & (train.item == item_id) & (train.year == year), features]
+                item_by_year.index = item_by_year.index.values.astype(int)
+
+                scaler = StandardScaler()
+                np_scaled = scaler.fit_transform(item_by_year[features].astype(float))
+                item_by_year = pandas.DataFrame(np_scaled)
+
+                model = IsolationForest(contamination=outliers_fraction)
+                model.fit(item_by_year) 
+                anomalies.extend(model.predict(item_by_year))
     return anomalies
 
 
@@ -31,49 +33,43 @@ def ListAllByApplyingIsolationForest(train, outliers_fraction):
 def ListAllByApplyingNormalization(train, number_of_std, alpha):
     normality = []
     anomalies = []
-    for s in range(1, 11):
-        for i in range(1, 51):
-            item_by_year = train.loc[(train.store == s) & (train.item == i), ['date', 'sales', 'month_number']]
-            item_by_year.date = pandas.DatetimeIndex(item_by_year.date).year
+    
+    for store_id in range(1, 11):
+        for item_id in range(1, 51):
+            item_data = train.loc[(train.store == store_id) & (train.item == item_id), ['sales', 'year', 'month_number']]
+            
+            first_month_sales = item_data.iloc[:29, item_data.columns.get_loc('sales')]
+            item_data['rolling_mean'] = item_data.sales.rolling(30).mean()
+            item_data.loc[:29, 'rolling_mean'] = first_month_sales
 
-            for y in range(2013, 2018):
-                for m in range(1, 13):
-                    item_month = np.array(item_by_year.sales[(item_by_year.date == y) & (item_by_year.month_number == m)])
-
-                    w, p_value = stats.shapiro(item_month)
+            item_data['rolling_std'] = item_data.sales.rolling(30).std()
+            item_data.loc[:29, 'rolling_std'] = first_month_sales
+            
+            for year in range(2013, 2018):
+                for month in range(1, 13):
+                    item_by_month = item_data.loc[(item_data['year'] == year) & (item_data['month_number'] == month), ['sales', 'rolling_mean', 'rolling_std']]
+                    w, p_value = stats.shapiro(np.array(item_by_month.sales))
                     normality.append(int(p_value > alpha))
 
-                    sales_by_month_mean = statistics.mean(item_month)
-                    sales_by_month_std = statistics.stdev(item_month)
-                    scores = np.absolute((item_month - sales_by_month_mean) / sales_by_month_std)
+                    scores = np.absolute((item_by_month.sales - item_by_month.rolling_mean) / item_by_month.rolling_std)
                     anomalies.extend([-int(score > number_of_std) for score in scores])
     return normality, anomalies
     
 # Plot the anomalies detected in the sales of a random store item.
 # anomaly_type is any of 'iforest', 'normal'.
-def PlotRandomStoreItem(train, anomaly_type):
-    store_id = randint(1, 10)
-    item_id = randint(1, 50)
+def scatterPlot(item, anomaly_type):
     anomaly_feature = "anomaly_" + anomaly_type
+    item_id = item.item.iloc[0]
+    store_id = item.store.iloc[0]
     
-    store_item = train.loc[(train.store == store_id) & (train.item == item_id), ['date', 'sales', anomaly_feature]]
-    store_item.date = pandas.DatetimeIndex(store_item.date)
-    anomalies = store_item.loc[store_item[anomaly_feature] == -1, ['date', 'sales']]
+    anomalies = item.loc[item[anomaly_feature] == -1, 'sales']
+    print(anomalies)
     
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(store_item.date.values, store_item.sales, color='blue', label='Normal')
-    ax.scatter(anomalies.date.values, anomalies.sales, color='red', label='Anomaly')
+    fig, ax = plt.subplots(figsize=(16, 10))
+    ax.plot(item.index, item.sales, color='blue', label='Normal')
+    ax.scatter(x=anomalies.index, y=anomalies.values, color='red', label='Anomaly')
     plt.xlabel('Date')
     plt.ylabel('Sales')
-    plt.title("Anomalies detected in the sales of the store " + str(store_id) + " - item " + str(item_id))
-    plt.legend()
-    plt.show();
-
-# 
-def PlotElbowCurve(nb_clusters_to_test, sum_squared_errors):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    plt.plot(nb_clusters_to_test, sum_squared_errors)
-    plt.xlabel('Number of Clusters')
-    plt.ylabel('SSE')
-    plt.title('Elbow Curve')
+    plt.title("Anomalies detected in the sales for the store " + str(store_id) + " - item " + str(item_id))
+    plt.legend(loc='best')
     plt.show();
