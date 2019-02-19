@@ -1,5 +1,9 @@
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import IsolationForest
+import warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings(action='ignore')
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+
 from random import randint
 from scipy import stats
 
@@ -22,9 +26,10 @@ def ListAllByApplyingIsolationForest(train, outliers_fraction):
                 scaler = StandardScaler()
                 np_scaled = scaler.fit_transform(item_by_year[features].astype(float))
                 item_by_year = pandas.DataFrame(np_scaled)
-
-                model = IsolationForest(contamination=outliers_fraction)
-                model.fit(item_by_year) 
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(action='ignore')
+                    model = IsolationForest(contamination=outliers_fraction)
+                    model.fit(item_by_year) 
                 anomalies.extend(model.predict(item_by_year))
     return anomalies
 
