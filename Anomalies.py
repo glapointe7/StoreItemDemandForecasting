@@ -8,6 +8,7 @@ from random import randint
 from scipy import stats
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import pandas
 import numpy as np
 from Item import *
@@ -17,8 +18,8 @@ from Item import *
 def ListAllByApplyingIsolationForest(train, outliers_fraction):
     anomalies = []
     features = ['sales']
-    for store_id in range(1, 11):
-        for item_id in range(1, 51):
+    for item_id in range(1, 51):
+        for store_id in range(1, 11):
             for year in range(2013, 2018):
                 item_by_year = train.loc[(train.store == store_id) & (train.item == item_id) & (train.year == year), features]
                 item_by_year.index = item_by_year.index.values.astype(int)
@@ -30,7 +31,7 @@ def ListAllByApplyingIsolationForest(train, outliers_fraction):
                     warnings.filterwarnings(action='ignore')
                     model = IsolationForest(contamination=outliers_fraction)
                     model.fit(item_by_year) 
-                anomalies.extend(model.predict(item_by_year))
+                anomalies.extend(np.absolute(model.predict(item_by_year)))
     return anomalies
 
 
@@ -39,8 +40,8 @@ def ListAllByApplyingNormalization(train, number_of_std, alpha):
     normality = []
     anomalies = []
     
-    for store_id in range(1, 11):
-        for item_id in range(1, 51):
+    for item_id in range(1, 51):
+        for store_id in range(1, 11):
             item_data = train.loc[(train.store == store_id) & (train.item == item_id), ['sales', 'year', 'month_number']]
             
             first_month_sales = item_data.iloc[:29, item_data.columns.get_loc('sales')]
@@ -57,24 +58,47 @@ def ListAllByApplyingNormalization(train, number_of_std, alpha):
                     normality.append(int(p_value > alpha))
 
                     scores = np.absolute((item_by_month.sales - item_by_month.rolling_mean) / item_by_month.rolling_std)
-                    anomalies.extend([-int(score > number_of_std) for score in scores])
+                    anomalies.extend([int(score > number_of_std) for score in scores])
     return normality, anomalies
+
+
+def ListAllByApplyingIQR(train, threshold):
+    anomalies = []
+        
+    for item_id in range(1, 51):
+        for store_id in range(1, 11):
+            for year in range(2013, 2018):
+                for month in range(1, 13):
+                    monthly_sales = train.loc[(train.store == store_id) & (train.item == item_id) & (train.year == year) & (train.month_number == month), 'sales']
+                    
+                    Q1 = monthly_sales.quantile(0.25)
+                    Q3 = monthly_sales.quantile(0.75)
+                    IQR = Q3 - Q1
+                    outliers = (monthly_sales < (Q1 - threshold * IQR)) | (monthly_sales > (Q3 + threshold * IQR))
+                    anomalies.extend([int(x) for x in outliers])
+    return anomalies
+    
     
 # Plot the anomalies detected in the sales of a random store item.
 # anomaly_type is any of 'iforest', 'normal'.
 def scatterPlot(item, anomaly_type):
     anomaly_feature = "anomaly_" + anomaly_type
-    item_id = item.item.iloc[0]
-    store_id = item.store.iloc[0]
+    item_id = 31 #item.item.iloc[0]
+    store_id = 1 #item.store.iloc[0]
+    colors = item[anomaly_feature]
+    item[anomaly_feature] = ['Normal' if x == 0 else 'Outlier' for x in item[anomaly_feature]]
+    labels = list(set(item[anomaly_feature]))
     
-    anomalies = item.loc[item[anomaly_feature] == -1, 'sales']
-    print(anomalies)
+    plt.figure(figsize=(12, 12))
+    plt.scatter(x=item.index,
+                y=item.sales,
+                c=colors,
+                cmap='bwr')
     
-    fig, ax = plt.subplots(figsize=(16, 10))
-    ax.plot(item.index, item.sales, color='blue', label='Normal')
-    ax.scatter(x=anomalies.index, y=anomalies.values, color='red', label='Anomaly')
-    plt.xlabel('Date')
-    plt.ylabel('Sales')
-    plt.title("Anomalies detected in the sales for the store " + str(store_id) + " - item " + str(item_id))
-    plt.legend(loc='best')
+    red_patch = mpatches.Patch(color='red', label='Outlier')
+    blue_patch = mpatches.Patch(color='blue', label='Normal')
+    plt.legend(handles=[red_patch, blue_patch])
+    
+    plt.title("Outliers detected for the store " + str(store_id) + " - item " + str(item_id))
+    plt.xticks(rotation=90)
     plt.show();
