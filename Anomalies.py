@@ -31,7 +31,7 @@ def ListAllByApplyingIsolationForest(train, outliers_fraction):
                     warnings.filterwarnings(action='ignore')
                     model = IsolationForest(contamination=outliers_fraction)
                     model.fit(item_by_year) 
-                anomalies.extend(np.absolute(model.predict(item_by_year)))
+                anomalies.extend(-model.predict(item_by_year))
     return anomalies
 
 
@@ -83,10 +83,10 @@ def ListAllByApplyingIQR(train, threshold):
 # anomaly_type is any of 'iforest', 'normal'.
 def scatterPlot(item, anomaly_type):
     anomaly_feature = "anomaly_" + anomaly_type
-    item_id = 31 #item.item.iloc[0]
-    store_id = 1 #item.store.iloc[0]
+    item_id = item.item.iloc[0]
+    store_id = item.store.iloc[0]
     colors = item[anomaly_feature]
-    item[anomaly_feature] = ['Normal' if x == 0 else 'Outlier' for x in item[anomaly_feature]]
+    item[anomaly_feature] = ['Outlier' if x == 1 else 'Normal' for x in item[anomaly_feature]]
     labels = list(set(item[anomaly_feature]))
     
     plt.figure(figsize=(12, 12))
